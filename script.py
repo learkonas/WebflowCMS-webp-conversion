@@ -5,11 +5,11 @@ import time
 import cloudinary
 import cloudinary.uploader
 
-## POPULATE THESE SIX VARIABLES
+## POPULATE THESE SEVEN VARIABLES
 Webflow_Bearer_Token = "YOUR_TOKEN_HERE"     # log in to Webflow via the 'Authenticate' button on this page to get your Bearer token: https://docs.developers.webflow.com/reference/authorized_by
 Webflow_Collection_Id = "Collection_ID_HERE" # navigate to your collection settings in the Webflow CMS and locate your Collection ID. It should be a 24-character alpha-numeric string. Go here for assistance: https://www.briantsdawson.com/blog/webflow-api-how-to-get-site-collection-and-item-ids-for-zapier-and-parabola-use
 Name_Of_Asset_Field = 'NAME_HERE'            # in your CMS Collection, what is the name of the asset field which holds your image. For example, it might be 'Preview Image' or 'Hero Image'. Convert the name to lower case and replace every space with a dash, like 'preview-image' or 'hero-image'
-New_Asset_Field = 'NAME_HERE'                # create a new field in your CMS Collection, and again make it lower case and replace spaces with dashes
+New_Asset_Field = 'NAME_HERE'                # create a new field in your CMS Collection, and again make it lower case and replace spaces with dashes. If you wish, you can overrwite the above field by naming this variable the same as the above, but this is not recommended because it would delete a backup that would be needed in the event something went wrong.
 CollectionSize = PUT_A_NUMBER_HERE           # number of items in your collection, round up to the nearest hundred
 CloundinaryKey = "API_KEY_HERE"
 CloundinarySecret = "API_SECRET_HERE"
