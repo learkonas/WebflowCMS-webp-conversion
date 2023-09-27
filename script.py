@@ -93,12 +93,16 @@ def webpFiltering():                    # this creates a new file focused on the
     print(f"Fetched {len(df['ImageAsset'])} images.")
     print(f"Removing WEBP images.")
     df = df.dropna(subset=['ImageAsset'])                           # filters out lines (Collection items) where no ImageAsset URLs were found
-    df = df[~df['ImageAsset'].str.endswith('.webp')]                # filters out lines (Collection items) where the ImageAsset is already a webp file (no need to convert these!)
-    df.to_csv('noWEBP.csv', index=False)                            # creates a new csv called noWEBP.csv
+    df_nowebp = df[~df['ImageAsset'].str.endswith('.webp')]                # filters out lines (Collection items) where the ImageAsset is already a webp file (no need to convert these!)
+    df_nowebp.to_csv('noWEBP.csv', index=False)                            # creates a new csv called noWEBP.csv
+    df_onlywebp = df[df['ImageAsset'].str.endswith('.webp')]               # picks up only the collection items where the ImageAsset is a webp file
+    df_onlywebp.to_csv('onlyWEBP.csv', index=False)                            # saves these lines to a different csv call onlyWEBP.csv -- we'll need this later when we add the images to your New Asset Field
     #convertToWebp()                                    # remove the # comment if you want the code to automatically run the next step
 
 def convertToWebp():                    # this converts all images to webp
-    df = pd.read_csv('noWEBP.csv')                      # downloads the noWEBP.csv (and converts to a dataframe)
+    df_newlyWebp = pd.read_csv('noWEBP.csv')                        # downloads the noWEBP.csv (and converts to a dataframe)
+    df_originallyWebp = pd.read_csv('onlyWEBP.csv')                 # downloads the onlyWEBP.csv (and converts to a dataframe)
+    df = pd.concat([df_newlyWebp, df_originallyWebp])               # merge those csvs together, so that every Collection Item will have a new webp in the new asset field
     print(f"Converting images to WEBP.")
     for index, row in df.iterrows():                    # we will run through every row (except the top index row), ie through every collection item
         imageURL = row['ImageAsset']                    # finds the correct image asset URL
