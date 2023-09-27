@@ -1,5 +1,8 @@
 # Webflow webp converter
 This script will convert images in a specific asset field on your Webflow CMS to the efficient .webp format.
+## Installation and Set-up
+Run `pip install -r requirements.txt` to install dependencies.
+To clone this repository, run `git clone https://github.com/learkonas/WebflowCMS-webp-conversion`
 ### Webflow
 You will need some familiarity with the Webflow CMS to added the relevant Webflow variables for your collection and the asset field you want to update.
 ### Cloundinary

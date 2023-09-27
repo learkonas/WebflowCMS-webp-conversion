@@ -32,11 +32,14 @@ cloudinary.config(
   api_secret = CloundinarySecret
 )
 
+waitTime = 5    
+
 def fullProcess():                        # this will run all of the code below. You'll need to uncomment the last line in each of the functions (including this one) to proceed to each next step
     print("Beginning the full process.")
     #fetchItems()
 
 def fetchItems():                         # this finds the collection item ID for each item in your collection
+    print(f"Fetching every item in Collection {Webflow_Collection_Id}.")
     for round in range(0, CollectionSize, 100): #Webflow is rate limited to 100 items per Fetch; this line runs the Fetch request the appropriate amount of times, based on your CollectionSize
         urlPost = f"https://api.webflow.com/v2/collections/{Webflow_Collection_Id}/items?offset={round}"
         response = requests.get(urlPost, **options)     # the response will be a list of Objects, one Object containing the data for each collection item
@@ -52,6 +55,8 @@ def fetchItems():                         # this finds the collection item ID fo
 
 def fetchImageAssetURLS():                    # this finds the URL of the specified image asset (from line 11) in each collection item
     df = pd.read_csv('postIDs.csv')                     # this will load the postIDs.csv you generated in the above function
+    print(f"Fetched {len(df['postIDs'])} posts.")
+    print(f"Fetching every {Name_Of_Asset_Field}.")
     for index, row in df.iterrows():                    # we will run through every row (except the top index row), ie through every collection item
         failed = False                                                                              # fresh start, this search hasn't failed (yet)
         post_id = row['postIDs']                                                                    # finds the correct postID
@@ -61,6 +66,14 @@ def fetchImageAssetURLS():                    # this finds the URL of the specif
             json_data = response.json()
             if json_data.get('fieldData', {}).get(Name_Of_Asset_Field):                             # checks to see if we successfully found the specified Asset
                 df.at[index, 'ImageAsset'] = json_data['fieldData'][Name_Of_Asset_Field]['url']     # adds the Webflow URL of that image asset to a list
+                if (index + 1) % 10 == 0:                                                                           # progress update on every 10 items updated
+                    print(f"{index+1} images have been fetched so far, with {df.shape[0]-index} remaining.") 
+                    print(f"Rate limit stands at: {response.headers['X-Ratelimit-Remaining']}")
+                    if int(response.headers['X-Ratelimit-Remaining']) < 20:             # if the rate limit gets too low, then we wait 5 seconds
+                        failed = True
+                        for i in range(waitTime, 0, -1):
+                            print(f"Approached rate limit at post_id {post_id}, waiting for {i} seconds...")
+                            time.sleep(1)
                 if failed == True:                                                                  # if the search had previously failed...
                     print(f"Succeed for post_id {post_id}.")                                            # ...then print a line to say that the search on this specific collection item has now succeeded
                     failed = False                                                                      # and set failed to False
@@ -69,7 +82,6 @@ def fetchImageAssetURLS():                    # this finds the URL of the specif
                 failed = True                                                               # if we don't find the Image Asset, then try again
                 print (response.text)                                                       # prints the response to help diagnose the problem
                 print(f"Rate limit: {response.headers['X-Ratelimit-Remaining']}")           # a potential problem is you hit the rate limit
-                waitTime = 5                                                                # this code instigates a pause of 5 seconds (waitTime = 5) and will retry.
                 for i in range(waitTime, 0, -1):
                     print(f"Failed for post_id {post_id}, retrying in {i} seconds...")
                     time.sleep(1)                                                           # if you have done something wrong with the code, then this delay-and-retry tactic will not work. You will have to Cmd/Ctrl + C to kill the script running and diagnose the error.
@@ -78,6 +90,8 @@ def fetchImageAssetURLS():                    # this finds the URL of the specif
 
 def webpFiltering():                    # this creates a new file focused on the collection items where the image asset is not a webp image (these are the only ones that matter)                                                
     df = pd.read_csv('postIDs.csv')                                 # downloads the postIDs.csv (and converts to a dataframe)
+    print(f"Fetched {len(df['ImageAsset'])} images.")
+    print(f"Removing WEBP images.")
     df = df.dropna(subset=['ImageAsset'])                           # filters out lines (Collection items) where no ImageAsset URLs were found
     df = df[~df['ImageAsset'].str.endswith('.webp')]                # filters out lines (Collection items) where the ImageAsset is already a webp file (no need to convert these!)
     df.to_csv('noWEBP.csv', index=False)                            # creates a new csv called noWEBP.csv
@@ -85,6 +99,7 @@ def webpFiltering():                    # this creates a new file focused on the
 
 def convertToWebp():                    # this converts all images to webp
     df = pd.read_csv('noWEBP.csv')                      # downloads the noWEBP.csv (and converts to a dataframe)
+    print(f"Converting images to WEBP.")
     for index, row in df.iterrows():                    # we will run through every row (except the top index row), ie through every collection item
         imageURL = row['ImageAsset']                    # finds the correct image asset URL
         try:
@@ -92,6 +107,8 @@ def convertToWebp():                    # this converts all images to webp
             if 'secure_url' in result:                                      # Cloundinary should return a result called 'secure-url'
                 webpURL = result['secure_url']                                  # this URL is our webpURL for the image asset!
                 df.at[index, 'webpURL'] = webpURL                           # let's add that to a column next to the orignal Image Asset
+                if (index + 1) % 10 == 0:                                                                           # progress update on every 10 items updated
+                    print(f"{index+1} images have been converted so far, with {df.shape[0]-index} remaining.") 
             else:
                 print("secure-url not found in result.")                    # if there is no secure-url but we do get a result back from Cloudinary
                 print(result)                                               # print the result so we can have a look at it
@@ -102,6 +119,10 @@ def convertToWebp():                    # this converts all images to webp
 
 def upgradeToWebp():                    # this updates the image asset in each collection item with the new webp URL
     df = pd.read_csv('noWEBP.csv')                                                  # downloads the noWEBP.csv (and converts to a dataframe)
+    attempts = 0
+    failures = 0
+    failedIDs = pd.DataFrame(columns=['failedIDs', 'failedWebpURL'])
+    print(f"Converted {len(df['webpURL'])} images to webp.")
     print("Successfully loaded the webp URLs. Commencing updates to Webflow.") 
     for index, row in df.iterrows():                                                # we will run through every row (except the top index row), ie through every collection item
         post_id = row['postIDs']                                                    # pick up the relevant collection item ID
@@ -115,17 +136,19 @@ def upgradeToWebp():                    # this updates the image asset in each c
         failed = False                                              # fresh start, we haven't failed on this one yet
         while True:                                                 # runs until hitting the break on line 133
             response = requests.patch(url, json=payload, headers=headers)
-            if int(response.headers['X-Ratelimit-Remaining']) < 20:             # if the rate limit gets too low, then we wait 5 seconds
-                waitTime = 5
-                failed = True
-                for i in range(waitTime, 0, -1):
-                    print(f"Approached rate limit at post_id {post_id}, waiting for {i} seconds...")
-                    time.sleep(1)
+            try:
+                if int(response.headers['X-Ratelimit-Remaining']) < 20:             # if the rate limit gets too low, then we wait 5 seconds
+                    failed = True
+                    for i in range(waitTime, 0, -1):
+                        print(f"Approached rate limit at post_id {post_id}, waiting for {i} seconds...")
+                        time.sleep(1)
+            except:
+                print(f"Error accessing the rate limit from the response header. Response header below. \n {response.headers}")
             json_data = response.json()
             if json_data.get('fieldData', {}).get(New_Asset_Field, {}).get('url'):                                  # if we successfully added the webp URL to the New_Asset_Field, then this part runs
                 df.at[index, 'newWebpURL'] = json_data.get('fieldData', {}).get(New_Asset_Field, {}).get('url')         # add the new webp URL (it will have 'webflow' in it) to a new column called newWebpURL
                 if (index + 1) % 10 == 0:                                                                           # progress update on every 10 items updated
-                    print(f"{index+1} banner images have been updated so far, with {df.shape[0]-index} remaining.") 
+                    print(f"{index+1-failures} images have been updated so far, with {failures} failure(s) and {df.shape[0]-index} remaining.") 
                     print(f"Rate limit stands at: {response.headers['X-Ratelimit-Remaining']}")
                 if failed == True:                                                                                  # if we previously failed on an item, then print a success message for when we succeed
                     print(f"Succeed for post_id {post_id}.")
@@ -133,12 +156,19 @@ def upgradeToWebp():                    # this updates the image asset in each c
                 break                                                                                               
             else:
                 failed = True                                                                   # if we fail, then...
-                waitTime = 5                                                                    
-                print(response.text)                                                                # ...print the response
-                for i in range(waitTime, 0, -1):                                                    # wait 5 seconds
-                    print(f"Failed for post_id {post_id}, retrying in {i} second(s)...")        # if the problem is not a rate limiting problem, you will need to kill the script run and diagnose the issue
-                    time.sleep(1)
+                attempts += 1 
+                if attempts == 3:
+                    print(f"Skipping adding image {webpURL} to post {post_id} after 3 failed attempts.")
+                    failures += 1
+                    failedIDs.loc[len(failedIDs)] = [post_id, webpURL]
+                    break
+                else:                                                               
+                    print(response.text)                                                                # ...print the response
+                    for i in range(waitTime, 0, -1):                                                    # wait 5 seconds
+                        print(f"Failed for post_id {post_id} after {attempts} attempt(s), retrying in {i} second(s)...")        # if the problem is not a rate limiting problem, you will need to kill the script run and diagnose the issue
+                        time.sleep(1)
     df.to_csv('upgradeToWEBP.csv', index=False) # create a new CSV with: the ID of every collection item you changed, the image asset URL you are replacing, the webp URL from Cloundinary, and the new webflow URL (newWebpURL)
+    if not failedIDs.empty: failedIDs.to_csv('failedWebpUploads.csv', index=False)      # if some webp URLs failed to upload, they will be saved to a csv called failedWebpUploads
 
 
 #fetchItems()
