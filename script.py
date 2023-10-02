@@ -32,7 +32,7 @@ cloudinary.config(
   api_secret = CloundinarySecret
 )
 
-waitTime = 5    
+waitTime = 4    
 
 def fullProcess():                        # this will run all of the code below. You'll need to uncomment the last line in each of the functions (including this one) to proceed to each next step
     print("Beginning the full process.")
@@ -141,7 +141,7 @@ def upgradeToWebp():                    # this updates the image asset in each c
         while True:                                                 # runs until hitting the break on line 133
             response = requests.patch(url, json=payload, headers=headers)
             try:
-                if int(response.headers['X-Ratelimit-Remaining']) < 20:             # if the rate limit gets too low, then we wait 5 seconds
+                if int(response.headers['X-Ratelimit-Remaining']) < 10:             # if the rate limit gets too low, then we wait 5 seconds
                     failed = True
                     for i in range(waitTime, 0, -1):
                         print(f"Approached rate limit at post_id {post_id}, waiting for {i} seconds...")
@@ -161,8 +161,9 @@ def upgradeToWebp():                    # this updates the image asset in each c
             else:
                 failed = True                                                                   # if we fail, then...
                 attempts += 1 
-                if attempts == 3:
-                    print(f"Skipping adding image {webpURL} to post {post_id} after 3 failed attempts.")
+                if attempts >= 3:
+                    print(f"Skipping adding image {webpURL} to post {post_id} after too many failed attempts.")
+                    attempts = 0
                     failures += 1
                     failedIDs.loc[len(failedIDs)] = [post_id, webpURL]
                     break
